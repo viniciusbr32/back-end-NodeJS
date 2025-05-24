@@ -1,124 +1,186 @@
-import { randomUUID } from 'node:crypto';
-import { sql } from './db.js';
-import bcrypt from 'bcrypt';
+import { randomUUID } from "node:crypto";
+import { sql } from "./db.js";
+import bcrypt from "bcrypt";
 
 export class DatabasePostgres {
-  async list(search) {
-    let users;
+	async list(search) {
+		let users;
 
-    if (search) {
-      users = await sql`SELECT * FROM users WHERE username ILIKE ${`%${search}%`}`;
-    } else {
-      users = await sql`SELECT * FROM users`;
-    }
+		if (search) {
+			users =
+				await sql`SELECT * FROM users WHERE username ILIKE ${`%${search}%`}`;
+		} else {
+			users = await sql`SELECT * FROM users`;
+		}
 
-    return users;
-  }
+		return users;
+	}
 
-  async create(user) {
-    const userId = randomUUID();
-    const { username, email, password } = user;
+	async create(user) {
+		const userId = randomUUID();
+		const { username, email, password } = user;
 
-    const existingEmail = await sql`SELECT * FROM users WHERE email = ${email}`;
-    if (existingEmail.length > 0) {
-      throw new Error('Email já cadastrado. Por favor, use outro email.');
-    }
+		const existingEmail = await sql`SELECT * FROM users WHERE email = ${email}`;
+		if (existingEmail.length > 0) {
+			throw new Error("Email já cadastrado. Por favor, use outro email.");
+		}
 
-    const existingUsername = await sql`SELECT * FROM users WHERE username = ${username}`;
-    if (existingUsername.length > 0) {
-      throw new Error('Nome de usuário já cadastrado. Por favor, escolha outro nome de usuário.');
-    }
+		const existingUsername =
+			await sql`SELECT * FROM users WHERE username = ${username}`;
+		if (existingUsername.length > 0) {
+			throw new Error(
+				"Nome de usuário já cadastrado. Por favor, escolha outro nome de usuário.",
+			);
+		}
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+		const hashedPassword = await bcrypt.hash(password, 10);
 
-    await sql`INSERT INTO users (id, username, email, password) VALUES (${userId}, ${username}, ${email}, ${hashedPassword})`;
-  }
+		await sql`INSERT INTO users (id, username, email, password) VALUES (${userId}, ${username}, ${email}, ${hashedPassword})`;
+	}
 
-  async delete(id) {
-    const result = await sql`DELETE FROM users WHERE id = ${id}`;
-    if (result.rowCount === 0) {
-      throw new Error('Usuário não encontrado.');
-    }
-    return { message: 'Usuário deletado com sucesso!' };
-  }
+	async delete(id) {
+		const result = await sql`DELETE FROM users WHERE id = ${id}`;
+		if (result.rowCount === 0) {
+			throw new Error("Usuário não encontrado.");
+		}
+		return { message: "Usuário deletado com sucesso!" };
+	}
 
-  async findByEmail(email) {
-    const user = await sql`SELECT * FROM users WHERE email = ${email}`;
-    return user.length ? user[0] : null;
-  }
+	async findByEmail(email) {
+		const user = await sql`SELECT * FROM users WHERE email = ${email}`;
+		return user.length ? user[0] : null;
+	}
 
-  async listVehicles() {
-    const vehicles = await sql`SELECT * FROM vehicles`;
-    return vehicles;
-  }
+	async listVehicles() {
+		const vehicles = await sql`SELECT * FROM vehicles`;
+		return vehicles;
+	}
 
-  async createVehicle(vehicle) {
-    const vehicleId = randomUUID();
-    const { model, brand, plate, year } = vehicle;
+	async createVehicle(vehicle) {
+		const vehicleId = randomUUID();
+		const { model, brand, plate, year } = vehicle;
 
-    const existingPlate = await sql`SELECT * FROM vehicles WHERE plate = ${plate}`;
-    if (existingPlate.length > 0) {
-      throw new Error('A placa já está cadastrada. Use outra placa.');
-    }
+		const existingPlate =
+			await sql`SELECT * FROM vehicles WHERE plate = ${plate}`;
+		if (existingPlate.length > 0) {
+			throw new Error("A placa já está cadastrada. Use outra placa.");
+		}
 
-    await sql`INSERT INTO vehicles (id, model, brand, plate, year) VALUES (${vehicleId}, ${model}, ${brand}, ${plate}, ${year})`;
-  }
+		await sql`INSERT INTO vehicles (id, model, brand, plate, year) VALUES (${vehicleId}, ${model}, ${brand}, ${plate}, ${year})`;
+	}
 
-  async deleteVehicle(id) {
-    const result = await sql`DELETE FROM vehicles WHERE id = ${id}`;
-    if (result.rowCount === 0) {
-      throw new Error('Veículo não encontrado.');
-    }
-    return { message: 'Veículo deletado com sucesso!' };
-  }
+	async deleteVehicle(id) {
+		const result = await sql`DELETE FROM vehicles WHERE id = ${id}`;
+		if (result.rowCount === 0) {
+			throw new Error("Veículo não encontrado.");
+		}
+		return { message: "Veículo deletado com sucesso!" };
+	}
 
-  async createMovement(movement) {
-    const movementId = randomUUID();
-    const { vehicle_id, start_location, end_location, distance } = movement;
+	async createMovement(movement) {
+		const movementId = randomUUID();
+		const { vehicle_id, start_location, end_location, distance } = movement;
 
-    await sql`
+		await sql`
       INSERT INTO vehicle_movements (id, vehicle_id, start_location, end_location, distance)
       VALUES (${movementId}, ${vehicle_id}, ${start_location}, ${end_location}, ${distance});
     `;
 
-    return { message: 'Movimentação criada com sucesso!' };
-  }
+		return { message: "Movimentação criada com sucesso!" };
+	}
 
-  async listMovements() {
-    const movements = await sql`
+	async listMovements() {
+		const movements = await sql`
       SELECT vm.*, v.plate as vehicle_plate
       FROM vehicle_movements vm
       JOIN vehicles v ON vm.vehicle_id = v.id
       ORDER BY vm.movement_date DESC
     `;
-    return movements;
-  }
+		return movements;
+	}
 
-  async createRefill(refill) {
-    const refillId = randomUUID();
-    const { vehicle_id, price, mileage, fuel_type } = refill;
+	async deleteMovement(id) {
+		const result =
+			await sql`DELETE FROM vehicle_movements WHERE id = ${id} RETURNING *`;
+		if (result.length === 0) {
+			console.log(`Nenhuma movimentação encontrada com id: ${id}`);
+			return false;
+		}
+		console.log("Movimentação deletada:", result[0]);
+		return true;
+	}
 
-    const existingVehicle = await sql`SELECT * FROM vehicles WHERE id = ${vehicle_id}`;
-    if (existingVehicle.length === 0) {
-      throw new Error('Veículo não encontrado. Não é possível criar o abastecimento.');
-    }
+	async createRefill(refill) {
+		const refillId = randomUUID();
+		const { vehicle_id, price, mileage, fuel_type } = refill;
 
-    await sql`
+		const existingVehicle =
+			await sql`SELECT * FROM vehicles WHERE id = ${vehicle_id}`;
+		if (existingVehicle.length === 0) {
+			throw new Error(
+				"Veículo não encontrado. Não é possível criar o abastecimento.",
+			);
+		}
+
+		await sql`
       INSERT INTO fuel_refills (id, vehicle_id, price, mileage, fuel_type)
       VALUES (${refillId}, ${vehicle_id}, ${price}, ${mileage}, ${fuel_type});
     `;
 
-    return { message: 'Abastecimento criado com sucesso!' };
-  }
+		return { message: "Abastecimento criado com sucesso!" };
+	}
 
-  async listRefills() {
-    const refills = await sql`
+	async deleteRefill(id) {
+		const result = await sql`DELETE FROM fuel_refills WHERE id = ${id}`;
+		if (result.rowCount === 0) {
+			throw new Error("Abastecimento não encontrado.");
+		}
+		return { message: "Abastecimento deletado com sucesso!" };
+	}
+
+	async listRefills() {
+		const refills = await sql`
       SELECT fr.*, v.plate as vehicle_plate
       FROM fuel_refills fr
       JOIN vehicles v ON fr.vehicle_id = v.id
       ORDER BY fr.refill_date DESC;
     `;
 
-    return refills;
-  }
+		return refills;
+	}
+
+	async listDrivers() {
+		const drivers = await sql`SELECT * FROM drivers ORDER BY name ASC`;
+		return drivers;
+	}
+
+	async createDriver(driver) {
+		const driverId = randomUUID();
+		const { name, license_number, experience } = driver;
+
+		// Consulta pelo nome correto da coluna no banco
+		const existingLicense = await sql`
+    SELECT * FROM drivers WHERE cnh = ${license_number}
+  `;
+
+		if (existingLicense.length > 0) {
+			throw new Error("Número da habilitação já cadastrado.");
+		}
+
+		// Insere usando o nome correto da coluna no banco
+		await sql`
+    INSERT INTO drivers (id, name, cnh, experience)
+    VALUES (${driverId}, ${name}, ${license_number}, ${experience})
+  `;
+
+		return { message: "Motorista cadastrado com sucesso!" };
+	}
+
+	async deleteDriver(id) {
+		const result = await sql`DELETE FROM drivers WHERE id = ${id}`;
+		if (result.rowCount === 0) {
+			throw new Error("Motorista não encontrado.");
+		}
+		return { message: "Motorista deletado com sucesso!" };
+	}
 }
